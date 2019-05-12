@@ -33,14 +33,11 @@ struct Relais
     if (IsOn()) SwitchOff();
     else SwitchOn();
   }
+  
   void SwitchOn() { digitalWrite(PIN, HIGH); _isOn = true; _toggleTime = millis(); }
   void SwitchOff() { digitalWrite(PIN, LOW); _isOn = false; _toggleTime = millis(); }
   bool IsOn() const { return _isOn; }
-  
-  unsigned long GetStateDuration() const 
-  {
-    return (millis() - _toggleTime) / 1000;
-  }
+  unsigned long GetStateDuration() const { return (millis() - _toggleTime) / 1000; }
   
 private:  
   bool _isOn { false };
@@ -69,7 +66,7 @@ struct FlowSensor
       }
     }
    
-    double flowRate = (pulses * 2.25);        // Take counted pulses in the last second and multiply by 2.25mL (see specs)
+    double flowRate = (pulses * 2.25);       // Take counted pulses in the last second and multiply by 2.25mL (see specs)
     flowRate = flowRate * 60;                // Convert seconds to minutes, giving you mL / Minute
     flowRate = flowRate / (now - startVal);  // Convert mL to Liters, giving you Liters / Minute
     _maxFlow = max(flowRate, _maxFlow);
@@ -79,8 +76,6 @@ struct FlowSensor
 
   double GetMaxFlow() const { return _maxFlow; }
 
-  // values are in milliseconds
-
 private:  
   double _maxFlow { 0 };
 };
@@ -89,8 +84,7 @@ template <int PIN>
 struct PressureSensor
 {
   void Init() 
-  { 
-  }
+  {}
 
   float GetMaxValue() const { return _maxVal; }
 
@@ -103,9 +97,8 @@ struct PressureSensor
     return result < 0 ? 0 : result;
   }
 
-
 private:
-  const float _offset = 0.405273;  // calibrate: use LOWEST voltage value determined in a dry run
+  static const float _offset = 0.405273;  // calibrate: use LOWEST voltage value determined in a dry run
   float _lowestVoltage = 10;
   float _maxVal = 0;
 };
@@ -133,7 +126,7 @@ void setup()
   lcd.Init();
   relais.Init();
   flowSensor.Init();
-  //pressureSensor.Init(0);
+  pressureSensor.Init();
   startTime = millis() / 1000;
 }
 
