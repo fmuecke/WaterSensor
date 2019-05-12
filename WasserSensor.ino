@@ -25,6 +25,7 @@ struct Relais
   { 
     _pin = pin;
     pinMode(_pin, OUTPUT);
+    _toggleTime = millis();
   }
 
   void Toggle()
@@ -32,13 +33,19 @@ struct Relais
     if (IsOn()) Off();
     else On();
   }
-  void On() { digitalWrite(_pin, HIGH); _isOn = true; }
-  void Off() { digitalWrite(_pin, LOW); _isOn = false; }
+  void On() { digitalWrite(_pin, HIGH); _isOn = true; _toggleTime = millis(); }
+  void Off() { digitalWrite(_pin, LOW); _isOn = false; _toggleTime = millis(); }
   bool IsOn() const { return _isOn; }
+  
+  unsigned long GetStateDuration() const 
+  {
+    return (millis() - _toggleTime) / 1000;
+  }
   
 private:  
   int _pin {10};  // default pin
   bool _isOn { false };
+  unsigned long _toggleTime { 0 };
 };
 
 struct FlowSensor 
@@ -57,8 +64,8 @@ struct FlowSensor
     for (; now - startVal < milisecs; now = millis())
     {
       auto duration = pulseIn(_pin, HIGH);
-      _minPulse = min(duration, _minPulse)/1000;
-      _maxPulse = max(duration, _maxPulse)/1000;
+      _minPulse = min(duration, static_cast<double>(_minPulse))/1000;
+      _maxPulse = max(duration, static_cast<double>(_maxPulse))/1000;
   
       if (duration > 0)
       {
@@ -85,7 +92,7 @@ struct FlowSensor
 
 private:  
   int _pin { 2 };
-  unsigned int _totalPulses { 0 };
+  unsigned int _totalPulses { 1 };
   unsigned long _totalDuration { 0 };
   unsigned long _avgPulse { 0 };
   unsigned long _maxPulse { 0 };
@@ -99,8 +106,8 @@ Relais relais;
 FlowSensor flowSensor;
 
 const int pressure_pin = 0;
-unsigned int loopCount = 0;
-const float pressure_offset = 0.42;  // calibrate: use LOWEST voltage value determined in a dry run
+unsigned long startTime = 0;
+const float pressure_offset = 0.405273;  // calibrate: use LOWEST voltage value determined in a dry run
 float lowestPressureVoltage = 10;
 float maxPressure = 0;
 
@@ -112,32 +119,41 @@ float getPressure()
   return result < 0 ? 0 : result;
 }
 
+String GetDurationString(unsigned long totalSecs)
+{
+  String s = String(totalSecs / 60);
+  s += "m ";
+  s += totalSecs % 60;
+  s += "s";
+  
+  return s;
+}
+
 void setup()
 {
   lcd.Init();
   relais.Init(10);
-  flowSensor.Init(2); 
+  flowSensor.Init(2);
+  startTime = millis() / 1000;
 }
 
 void loop()
 {
-  loopCount++;
-
-  auto flowRate = flowSensor.Measure(1000);
+  auto flowRate = flowSensor.Measure(500);
   lcd.Clear();
 
   auto pressure = getPressure();
   maxPressure = max(pressure, maxPressure);
   String s = String(pressure, 1);
-  s += " Bar (";
+  s += " (";
   s += String(maxPressure, 1);
-  s += ")";
+  s += ") Bar";
   lcd.DrawLine(0, s.c_str());
 
   s = String(flowRate, 1);
-  s += " L/min (";
+  s += " (";
   s += String(flowSensor.GetMaxFlow(), 1);
-  s += ")";
+  s += ") L/min";
   lcd.DrawLine(1, s.c_str());
   
   s = " ";
@@ -151,17 +167,19 @@ void loop()
   s += String(flowSensor.GetAveragePulse());
   s += "ms";
   lcd.DrawLine(3, s.c_str());
-  
+
+#ifdef _DEBUG
   s = String(lowestPressureVoltage,6);
   s += " - ";
   s += loopCount;
   lcd.DrawLine(4, s.c_str());
+#endif
 
   //relais.Toggle();
   
-  s = "relais is: ";
-  s += relais.IsOn();
-  lcd.DrawLine(5, s.c_str());
+  s = relais.IsOn() ? "relais ON " : "relais OFF ";
+  s += GetDurationString(relais.GetStateDuration());
+  lcd.DrawLine(4, s.c_str());
   
   lcd.Flush(); 
 }
