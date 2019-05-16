@@ -9,9 +9,11 @@ public:
   void Init()
   {
     oled.begin(); 
-    oled.setFont(u8g2_font_t0_11_tr); // 6x11
-    //oled.setFont(u8g2_font_t0_12_tr); // 6x11
-    oled.setContrast(128);
+    //oled.setFont(u8g2_font_t0_11_tr); // 6x11
+    oled.setFont(u8g2_font_t0_12_tr); // 6x11
+	//oled.setFont(u8g2_font_6x10_tr);
+	//oled.setFont(u8g2_font_6x12_tr);
+    oled.setContrast(64);
   }
   
   void DrawLine(int nr, const char* str)
@@ -42,6 +44,8 @@ public:
   {
     oled.sendBuffer();          // transfer internal memory to the display
   }
+  
+  U8G2_SSD1306_128X64_NONAME_F_HW_I2C* Raw() { return &oled; }
   
 private:
   U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled {U8G2_R0, /* reset=*/ U8X8_PIN_NONE};

@@ -1,71 +1,116 @@
-#include "OledDisplay.hpp"
+#define DIAG
+
+#ifdef DIAG
+  #include <SPI.h>
+  #include <SD.h>
+#else
+  #include "OledDisplay.hpp"
+#endif
+
 #include "FlowSensor.hpp"
 #include "PressureSensor.hpp"
 #include "Relais.hpp"
 
-OledDisplay oled;
+#ifdef DIAG
+  File logFile;
+  bool sdLoaded = false;
+#else 
+  OledDisplay oled;
+#endif
+
 Relais<10> relais;
 FlowSensor<2> flowSensor;
 PressureSensor<0> pressureSensor;
 
-unsigned long startTime = 0;
+unsigned long startTick = 0;
+unsigned long lastWriteTick = 0;
 
 String DurationString(unsigned long totalSecs)
 {
   String s = String(totalSecs / 60);
-  s += "m ";
+  s += F("m ");
   s += totalSecs % 60;
-  s += "s";
+  s += F("s");
   return s;
 }
 
 void setup()
 {
-  oled.Init();
-  relais.Init();
-  flowSensor.Init();
-  pressureSensor.Init();
-  startTime = millis() / 1000;
-
+#ifdef DIAG
+  sdLoaded = SD.begin(4);
+  if (sdLoaded)
+  {
+    // turn off internal LED
+    pinMode(13, OUTPUT);
+    digitalWrite(13, LOW);
+  }
+#else
   // turn off internal LED
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
+  oled.Init();
+#endif
+
+  relais.Init();
+  flowSensor.Init();
+  pressureSensor.Init();
+  startTick = millis() / 1000;
 }
 
 void loop()
 {
+  auto currentTick = millis()/1000;
   auto flowRate = flowSensor.Measure(500);
-  oled.Clear();
 
   // e.g. "2.0 Bar (2.2)"
   auto pressure = pressureSensor.GetValue();
-  String s = String(pressure, 1);
-  s += " Bar (";
-  s += String(pressureSensor.GetMaxValue(), 1);
-  s += ")";
-  oled.DrawLine(0, s.c_str());
+  String line0 = String(pressure, 1);
+  line0 += F(" Bar (");
+  line0 += String(pressureSensor.GetMaxValue(), 1);
+  line0 += F(")");
 
   // e.g. "10.3 L/min (11.4)"
-  s = String(flowRate, 1);
-  s += " L/min (";
-  s += String(flowSensor.GetMaxFlow(), 1);
-  s += ")";
-  oled.DrawLine(1, s.c_str());
+  String line1 = String(flowRate, 1);
+  line1 += F(" L/min (");
+  line1 += String(flowSensor.GetMaxFlow(), 1);
+  line1 += F(")");
   
-  if (!relais.IsOn() && pressureSensor.GetValue() >= 1.2f)  { relais.SwitchOn(); }
+  if (!relais.IsOn() && (int)pressureSensor.GetValue() > 1)  { relais.SwitchOn(); }
   if (relais.IsOn() && pressureSensor.GetValue() <= 0.6f) { relais.SwitchOff(); }
 
   // e.g. "OPEN since 6m 12s"
-  s = relais.IsOn() ? "OPEN " : "CLOSED ";
-  s += DurationString(relais.GetStateDuration());
-  s += " (";
-  s += DurationString(relais.GetLastOpenDuration());
-  s += ")";
-  oled.DrawLine(3, s.c_str());
+  String line3 = relais.IsOn() ? F("OPEN ") : F("CLOSED ");
+  line3 += DurationString(relais.GetStateDuration());
+  line3 += F(" (");
+  line3 += DurationString(relais.GetLastOpenDuration());
+  line3 += F(")");
 
-  s = "elapsed: ";
-  s += DurationString(millis()/1000 - startTime);
-  oled.DrawLine(4, s.c_str());
+  String line4 = F("elapsed: ");
+  line4 += DurationString(currentTick - startTick);
   
+
+#ifdef DIAG
+  if (sdLoaded && currentTick - lastWriteTick > 60)
+  {
+    lastWriteTick = currentTick;
+    logFile = SD.open(F("pumpe.log"), FILE_WRITE);
+    logFile.print(currentTick);
+    logFile.print(F(";"));
+    logFile.print(pressure);
+    logFile.print(F(";"));
+    logFile.print(flowRate);
+    logFile.print(F(";"));
+    logFile.print(relais.IsOn()?F("on"):F("off"));
+    logFile.close();
+  }
+#else
+  oled.Clear();
+  oled.DrawLine(0, line0.c_str());
+  oled.DrawLine(1, line1.c_str());
+  //oled.DrawLine(2, line2.c_str());
+  oled.DrawLine(3, line3.c_str());
+  oled.DrawLine(4, line4.c_str());
   oled.Flush(); 
+#endif
+  
 }
