@@ -100,7 +100,7 @@ void loop()
     logFile.print(F(";"));
     logFile.print(flowRate);
     logFile.print(F(";"));
-    logFile.print(relais.IsOn()?F("on"):F("off"));
+    logFile.println(relais.IsOn()?F("on"):F("off"));
     logFile.close();
   }
 #else
